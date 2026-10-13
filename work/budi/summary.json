@@ -1,0 +1,30 @@
+{
+  "agent": "Budi",
+  "source_file": "work/budi/raw.csv",
+  "rows": 60,
+  "first_date": "2026-08-01",
+  "last_date": "2026-09-29",
+  "mean_temp_c": 18.77,
+  "min_temp_c": 4.7,
+  "min_temp_on": "2026-09-10",
+  "max_temp_c": 29.7,
+  "max_temp_on": "2026-08-31",
+  "total_rainfall_mm": 181.8,
+  "mean_rainfall_mm": 3.03,
+  "wet_days": 40,
+  "per_station": {
+    "East": {
+      "rows": 20,
+      "mean_temp_c": 17.66
+    },
+    "North": {
+      "rows": 20,
+      "mean_temp_c": 19.04
+    },
+    "South": {
+      "rows": 20,
+      "mean_temp_c": 19.59
+    }
+  },
+  "computed_at": "2026-10-12 15:05:32"
+}

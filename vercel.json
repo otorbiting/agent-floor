@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/原型/V9 Agent-Floor.html"
+    }
+  ]
+}

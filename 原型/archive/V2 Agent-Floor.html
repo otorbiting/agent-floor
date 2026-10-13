@@ -1,0 +1,959 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent Floor — live workspace</title>
+<style>
+:root{
+  --bg:#151412; --panel:rgba(23,22,20,.82);
+  --line:rgba(255,255,255,.09); --ink:#f4f0e9; --dim:#a9a094; --dim-2:#7d766c;
+  --accent:#f2890b; --work:#6cc07a; --walk:#6aa9e0; --meet:#e0a94a; --rest:#4fb3a5;
+  --font:ui-sans-serif,"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;-webkit-font-smoothing:antialiased}
+canvas{position:fixed;inset:0;width:100vw;height:100vh;display:block;cursor:grab;touch-action:none}
+canvas.drag{cursor:grabbing}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  backdrop-filter:blur(12px);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+.brand{position:fixed;left:18px;top:16px;padding:10px 14px;display:flex;gap:11px;align-items:center;z-index:5}
+.brand svg{width:26px;height:26px;flex:none}
+.brand h1{margin:0;font-size:15px;font-weight:650;letter-spacing:-.01em}
+.brand p{margin:2px 0 0;font-size:11px;color:var(--dim)}
+.brand .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--work);margin-right:5px;vertical-align:1px}
+.board{position:fixed;right:18px;top:16px;padding:11px 13px;z-index:5;min-width:226px}
+.board .row{display:flex;align-items:baseline;justify-content:space-between;gap:14px}
+.board time{font:600 15px/1 var(--mono);letter-spacing:-.02em}
+.board .shift{font-size:10.5px;color:var(--dim);letter-spacing:.05em;text-transform:uppercase}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.stats div{font-size:10px;color:var(--dim);letter-spacing:.04em;text-transform:uppercase}
+.stats b{display:block;font:650 15px/1.35 var(--mono);color:var(--ink)}
+.roster{position:fixed;right:18px;top:132px;width:266px;max-height:calc(100vh - 268px);display:flex;flex-direction:column;z-index:5;overflow:hidden}
+.roster header{padding:10px 13px 8px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim)}
+.roster ul{list-style:none;margin:0;padding:6px;overflow-y:auto;scrollbar-width:thin}
+.roster li{display:grid;grid-template-columns:22px 1fr auto;gap:9px;align-items:center;padding:7px 8px;border-radius:8px;cursor:pointer;transition:background .15s}
+.roster li:hover{background:rgba(255,255,255,.05)}
+.roster li[aria-current="true"]{background:rgba(242,137,11,.14);box-shadow:inset 0 0 0 1px rgba(242,137,11,.32)}
+.av{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font:650 9.5px/1 var(--font);color:#17150f}
+.roster .who{min-width:0}
+.roster .nm{display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.roster .tk{display:block;font-size:10.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:2px 7px;white-space:nowrap}
+.chip[data-s="working"]{color:var(--work);border-color:rgba(108,192,122,.4)}
+.chip[data-s="aisle"]{color:var(--walk);border-color:rgba(106,169,224,.4)}
+.chip[data-s="meeting"]{color:var(--meet);border-color:rgba(224,169,74,.4)}
+.chip[data-s="break"]{color:var(--rest);border-color:rgba(79,179,165,.4)}
+.card{position:fixed;left:18px;top:92px;width:298px;z-index:6;overflow:hidden}
+.card.hide{display:none}
+.card .top{display:flex;gap:11px;padding:13px;align-items:center;border-bottom:1px solid var(--line)}
+.card .av{width:34px;height:34px;border-radius:9px;font-size:13px}
+.card h2{margin:0;font-size:14px;font-weight:650}
+.card .sub{font-size:11px;color:var(--dim);margin-top:2px}
+.card .body{padding:12px 13px 14px;display:grid;gap:11px}
+.card .lbl{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim-2)}
+.card .task{font-size:12.5px;margin-top:5px}
+.bar{height:4px;border-radius:3px;background:rgba(255,255,255,.09);overflow:hidden;margin-top:7px}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:3px;transition:width .3s linear}
+.files{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.files span{font:11px/1.5 var(--mono);color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:2px 6px}
+.card .log{margin:0;padding:0;list-style:none;display:grid;gap:5px;margin-top:6px}
+.card .log li{font-size:11px;color:var(--dim);display:flex;gap:7px}
+.card .log em{font-style:normal;font:11px/1.45 var(--mono);color:var(--dim-2);flex:none}
+.feed{position:fixed;left:18px;bottom:16px;width:min(432px,calc(100vw - 36px));z-index:5;padding:9px 12px 10px}
+.feed header{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim-2);margin-bottom:6px}
+.feed ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.feed li{font-size:11.5px;color:var(--dim);display:flex;gap:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;animation:in .35s ease both}
+.feed li b{color:var(--ink);font-weight:600}
+.feed em{font-style:normal;font:11px/1.5 var(--mono);color:var(--dim-2);flex:none}
+.feed li b{color:var(--ink);font-weight:600}
+@keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.controls{position:fixed;right:18px;bottom:16px;z-index:6;display:flex;gap:6px;padding:6px}
+.controls button{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--ink);height:32px;min-width:34px;padding:0 9px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;font:600 11.5px/1 var(--font);transition:background .15s,border-color .15s}
+.controls button:hover{background:rgba(255,255,255,.09)}
+.controls button:active{transform:translateY(1px)}
+.controls button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.controls svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.controls .sep{width:1px;background:var(--line);margin:4px 2px}
+.hint{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:4;font-size:11px;color:var(--dim);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 13px;white-space:nowrap;pointer-events:none}
+.hint kbd{font:600 10.5px/1 var(--mono);background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:4px;padding:2px 4px;color:var(--ink)}
+.btn-roster{display:none}
+@media (max-width:980px){
+  .roster{display:none}
+  .roster.open{display:flex;left:18px;right:18px;width:auto;top:auto;bottom:64px;max-height:46vh}
+  .btn-roster{display:inline-flex}
+  .card{left:18px;right:18px;width:auto;top:auto;bottom:64px}
+  .feed{display:none}
+  .hint{display:none}
+  .board{min-width:0;padding:9px 11px;right:12px;top:12px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .brand{left:12px;top:12px;padding:8px 11px}
+}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<header class="brand panel">
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="2.2" y="10.5" width="19.6" height="1.9" rx=".9" fill="#f2890b"/>
+    <path d="M4.6 12.4v4.2M19.4 12.4v4.2" stroke="#6f675c" stroke-width="1.6" stroke-linecap="round"/>
+    <rect x="7.8" y="4.4" width="8.4" height="5.6" rx="1" fill="none" stroke="#cfc7ba" stroke-width="1.5"/>
+    <circle cx="12" cy="18.8" r="1.5" fill="#6cc07a"/>
+  </svg>
+  <div>
+    <h1>Agent Floor</h1>
+    <p><span class="dot"></span><span id="brandsub">10 agents on shift</span></p>
+  </div>
+</header>
+
+<section class="board panel" aria-label="Floor board">
+  <div class="row">
+    <time id="clock">09:00</time>
+    <span class="shift" id="shiftlbl">Shift · running</span>
+  </div>
+  <div class="stats">
+    <div>Working<b id="s-work">0</b></div>
+    <div>Aisle<b id="s-walk">0</b></div>
+    <div>Away<b id="s-away">0</b></div>
+    <div>Shipped<b id="s-done">0</b></div>
+  </div>
+</section>
+
+<aside class="roster panel" id="roster" aria-label="Agents">
+  <header><span>Agents</span><span id="roster-count">10</span></header>
+  <ul id="roster-list"></ul>
+</aside>
+
+<section class="card panel hide" id="card" aria-live="polite">
+  <div class="top">
+    <span class="av" id="c-av">–</span>
+    <div><h2 id="c-name">–</h2><div class="sub" id="c-role">–</div></div>
+  </div>
+  <div class="body">
+    <div>
+      <div class="lbl">Current task</div>
+      <div class="task" id="c-task">–</div>
+      <div class="bar"><i id="c-bar" style="width:0%"></i></div>
+    </div>
+    <div><div class="lbl">Recent output</div><div class="files" id="c-files"></div></div>
+    <div><div class="lbl">Activity</div><ul class="log" id="c-log"></ul></div>
+  </div>
+</section>
+
+<footer class="feed panel" aria-label="Floor log" aria-live="polite">
+  <header>Floor log</header>
+  <ul id="feed-list"></ul>
+</footer>
+
+<div class="controls panel">
+  <button id="b-play" title="Pause or resume the floor (space)"><svg viewBox="0 0 24 24" id="i-play"><path d="M8 5.5v13M16 5.5v13"/></svg><span id="b-play-lbl">Pause</span></button>
+  <button id="b-speed" title="Simulation speed">1×</button>
+  <div class="sep"></div>
+  <button id="b-zout" title="Zoom out" aria-label="Zoom out"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.2"/><path d="M8.6 11h4.8M15.6 15.6 20 20"/></svg></button>
+  <button id="b-zin" title="Zoom in" aria-label="Zoom in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.2"/><path d="M8.6 11h4.8M11 8.6v4.8M15.6 15.6 20 20"/></svg></button>
+  <button id="b-night" title="Toggle day and night" aria-label="Toggle day and night"><svg viewBox="0 0 24 24" id="i-sun"><circle cx="12" cy="12" r="4.1"/><path d="M12 2.8v2.3M12 18.9v2.3M2.8 12h2.3M18.9 12h2.3M5.5 5.5l1.6 1.6M16.9 16.9l1.6 1.6M18.5 5.5l-1.6 1.6M7.1 16.9l-1.6 1.6"/></svg></button>
+  <button id="b-reset" title="Reset the view" aria-label="Reset view"><svg viewBox="0 0 24 24"><path d="M12 4.2v15.6M4.2 12h15.6"/><circle cx="12" cy="12" r="3.1"/></svg></button>
+  <button id="b-roster" class="btn-roster" title="Show agent list">Agents</button>
+</div>
+<p class="hint">Drag to pan · Scroll to zoom · Click a desk to follow an agent · <kbd>Space</kbd> pause</p>
+
+<script>
+(() => {
+"use strict";
+const cv = document.getElementById('scene'), ctx = cv.getContext('2d');
+const FONT = 'ui-sans-serif,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif';
+const MONO = 'ui-monospace,"Cascadia Mono",Consolas,monospace';
+const TW = 32, TH = 16, ZU = 30;                 // px per half tile (x/y), px per world unit of height
+const iso = (x, y, z = 0) => [(x - y) * TW, (x + y) * TH - z * ZU];
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- colour ---------- */
+const _cm = new Map();
+function sh(c, f) {                               // f>0 lighten, f<0 darken
+  const k = c + f; let v = _cm.get(k); if (v) return v;
+  const n = parseInt(c.slice(1), 16); let r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
+  const t = f < 0 ? 0 : 255, a = Math.abs(f);
+  r += Math.round((t - r) * a); g += Math.round((t - g) * a); b += Math.round((t - b) * a);
+  v = `rgb(${r},${g},${b})`; _cm.set(k, v); return v;
+}
+const C = {
+  floor: '#3a383f', floor2: '#423f48', aisle: '#464452', grid: 'rgba(255,255,255,.045)',
+  rug: '#4c4441', rugEdge: '#5d524d', wood: '#6d4c33', woodLine: 'rgba(0,0,0,.17)', mat: '#31353c',
+  wall: '#2f2d33', glassFrame: '#4a5661', glass: 'rgba(150,190,215,.15)',
+  metal: '#3b3e44', bezel: '#191b1f', chair: '#2b2e34', chairHi: '#3a3e45',
+  counter: '#7d5738', counterTop: '#cbb9a2', machine: '#2c3038', cooler: '#cfe3ee', coolerB: '#3d7ea3',
+  sofa: '#4d5f68', pot: '#8a5a3b', leafA: '#4f7a4a', leafB: '#5f8f55', leafC: '#3f663d',
+  rack: '#1b1d22', accent: '#f2890b', data: '#5fb3c9',
+  skin: ['#f0c9a4', '#dfa878', '#c08a58', '#a9714b', '#8d5a3a'],
+  hair: ['#1d1a17', '#3a2b1f', '#5a3b28', '#141619', '#2c2c31', '#6b4a2c']
+};
+const TINT = { sheet: '#0f2b2a', chat: '#171a24', code: '#101418', chart: '#0d2230' };
+const STCOL = { work: '#6cc07a', think: '#e0a94a', aisle: '#6aa9e0', meet: '#e0a94a', break: '#4fb3a5', sit: '#6cc07a', stand: '#6aa9e0' };
+const STNAME = { work: 'Working', think: 'Focus', aisle: 'Aisle', meet: 'Meeting', break: 'Break', sit: 'Working', stand: 'Aisle' };
+
+function q(pts, fill) {
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+}
+function box(x, y, z, w, d, h, c, top) {
+  q([iso(x + w, y, z), iso(x + w, y + d, z), iso(x + w, y + d, z + h), iso(x + w, y, z + h)], sh(c, -.17));
+  q([iso(x, y + d, z), iso(x + w, y + d, z), iso(x + w, y + d, z + h), iso(x, y + d, z + h)], sh(c, -.35));
+  q([iso(x, y, z + h), iso(x + w, y, z + h), iso(x + w, y + d, z + h), iso(x, y + d, z + h)], top ? sh(c, .2) : sh(c, .13));
+}
+function diamond(x, y, w, d, fill, z = 0) {
+  q([iso(x, y, z), iso(x + w, y, z), iso(x + w, y + d, z), iso(x, y + d, z)], fill);
+}
+function shadow(x, y, w, d) {
+  diamond(x - w * .07, y - d * .07, w * 1.14, d * 1.14, 'rgba(6,6,8,.10)');
+  diamond(x, y, w, d, 'rgba(6,6,8,.20)');
+}
+
+/* ---------- world ---------- */
+const W = 26, D = 22, WALL_H = 2.6;
+const MEET = { x0: 2.6, y0: 12.4, x1: 9.2, y1: 19.4 };
+const DESK_W = 2.4, DESK_D = 1.5, DESK_H = .52;
+const DESKS = [
+  { t: 'B', x: 10.8, y: 3.0 }, { t: 'B', x: 13.6, y: 3.0 }, { t: 'B', x: 16.4, y: 3.0 }, { t: 'B', x: 19.2, y: 3.0 },
+  { t: 'A', x: 10.8, y: 7.0 }, { t: 'A', x: 10.8, y: 9.8 }, { t: 'A', x: 10.8, y: 12.6 },
+  { t: 'A', x: 15.2, y: 7.0 }, { t: 'A', x: 15.2, y: 9.8 }, { t: 'A', x: 15.2, y: 12.6 }
+];
+const seatOf = d => d.t === 'B'
+  ? { x: d.x + DESK_W * .5, y: d.y + DESK_D + .35, dx: 0, dy: -1 }
+  : { x: d.x + DESK_D + .35, y: d.y + DESK_W * .5, dx: -1, dy: 0 };
+const aisleOf = d => d.t === 'B' ? [[d.x + DESK_W * .5, 5.6]]
+  : (d.x < 13 ? [[13.35, d.y + DESK_W * .5]] : [[17.6, d.y + DESK_W * .5], [17.6, 5.6]]);
+const HUB = [13.35, 5.6];
+const MEETVIA = [[6.6, 5.6], [6.6, 12.4]];
+const PLACES = {
+  coffee: { p: [13.1, 18.4], dx: 0, dy: 1, via: [[13.35, 16.2], [13.1, 16.2]] },
+  cooler: { p: [10.5, 17.9], dx: 0, dy: 1, via: [[13.35, 16.2], [10.5, 16.2]] },
+  sofa: { p: [15.9, 18.5], dx: 1, dy: 0, sit: .22, via: [[13.35, 16.2], [15.9, 16.2]] },
+  meetN: { p: [5.9, 14.2], dx: 0, dy: -1, via: MEETVIA },
+  meetW: { p: [4.0, 15.7], dx: 1, dy: 0, via: MEETVIA },
+  meetE: { p: [7.8, 15.7], dx: -1, dy: 0, via: MEETVIA },
+  meetS: { p: [5.9, 17.3], dx: 0, dy: 1, via: MEETVIA }
+};
+const PLANTS = [[9.6, 11.4], [1.9, 20.5], [22.5, 17.1], [9.9, 15.9], [20.3, 1.2], [9.1, 3.1], [19.4, 20.6]];
+
+const TASKS = {
+  'Ops lead': [['Rebuild Q3 cash-flow model', ['cashflow-q3.xlsx', 'burn-rate.csv']], ['Reconcile vendor invoices', ['invoices-oct.xlsx', 'queries.md']], ['Draft standup agenda', ['agenda-1030.md']], ['Chase overdue approvals', ['approvals.csv']]],
+  'Data analyst': [['Churn model, v4', ['churn-v4.ipynb', 'cohorts.csv']], ['Weekly revenue snapshot', ['revenue-w42.xlsx', 'chart.png']], ['Clean the signup funnel', ['funnel-clean.csv']], ['Backfill the event table', ['events-oct.parquet']]],
+  'Finance': [['Close September books', ['gl-sept.xlsx', 'variance.xlsx']], ['Payroll forecast', ['payroll-forecast.xlsx']], ['Tax filing checklist', ['tax-checklist.md']]],
+  'Support': [['Triage overnight inbox', ['tickets-today.csv', 'faq-update.md']], ['Rewrite the refund policy', ['refunds.md']], ['Escalate 3 stuck tickets', ['escalations.md']]],
+  'Research': [['Vendor comparison brief', ['vendors-brief.md', 'scoring.xlsx']], ['Summarise 12 papers', ['lit-review.md']], ['Pricing teardown', ['pricing-teardown.md']]],
+  'Engineer': [['Fix the nightly pipeline', ['fix-4172.patch', 'pipeline.log']], ['Shard the events table', ['migration-91.sql']], ['Cut release 2.14', ['release-notes.md']]],
+  'Design': [['Onboarding screens', ['onboarding-v3.fig', 'tokens.json']], ['Empty states pass', ['empty-states.fig']], ['Icon set cleanup', ['icons.svg']]],
+  'Sales': [['Follow-up sequences', ['outreach-batch-12.csv']], ['Quote for Meridian', ['quote-meridian.pdf']], ['Pipeline hygiene', ['pipeline.xlsx']]],
+  'Scheduler': [['Balance next week shifts', ['rota-w43.xlsx']], ['Book the partner call', ['invite.ics']], ['Clean up overdue tasks', ['backlog.md']]],
+  'QA': [['Regression pass, build 214', ['regression-214.md', 'failures.csv']], ['Soak test the importer', ['soak-report.md']], ['Triage flaky tests', ['flaky-list.md']]]
+};
+const NAMES = [['Maya', 'Ops lead'], ['Raka', 'Data analyst'], ['Sinta', 'Finance'], ['Bimo', 'Support'],
+  ['Nadia', 'Research'], ['Yusuf', 'Engineer'], ['Dewi', 'Design'], ['Arif', 'Sales'], ['Laras', 'Scheduler'], ['Tomo', 'QA']];
+const SHIRTS = ['#e0663d', '#3f8fc0', '#63b06f', '#d9a534', '#45a79c', '#c4607f', '#8b93a1', '#d97f2e', '#5f7fd0', '#9a6b4f'];
+
+const AGENTS = NAMES.map(([n, r], i) => {
+  const seat = seatOf(DESKS[i]);
+  return {
+    i, n, r, seat, shirt: SHIRTS[i], skin: C.skin[i % C.skin.length], hair: C.hair[i % C.hair.length],
+    x: seat.x, y: seat.y, dx: seat.dx, dy: seat.dy, task: TASKS[r][0], ti: 0,
+    state: 'work', t: Math.random() * 4, sit: 1, sitTarget: 1, prog: Math.random() * .5,
+    dur: 22 + Math.random() * 20, files: [], log: [], say: '', sayT: 0, think: 0, thinkT: 0,
+    path: null, leg: 0, px: seat.x, py: seat.y, away: false, breakT: 0, meetT: 0, meet: false,
+    walkT: Math.random() * 6, dirx: 0, diry: 0, homeT: 0
+  };
+});
+
+/* ---------- desk screens ---------- */
+const KINDS = ['sheet', 'chart', 'chat', 'code'];
+function paintScreen(c, kind, seed, t, dim) {
+  const w = c.canvas.width, h = c.canvas.height;
+  c.clearRect(0, 0, w, h);
+  c.fillStyle = dim ? '#0c0d10' : TINT[kind]; c.fillRect(0, 0, w, h);
+  c.globalAlpha = dim ? .34 : 1;
+  if (kind === 'sheet') {
+    c.fillStyle = 'rgba(255,255,255,.10)';
+    for (let r = 0; r < 7; r++) c.fillRect(4, 8 + r * 7, w - 8, 1);
+    for (let r = 0; r < 8; r++) c.fillRect(6 + r * 14, 6, 1, 48);
+    c.fillStyle = 'rgba(255,255,255,.24)';
+    for (let r = 0; r < 7; r++) c.fillRect(4, 8 + r * 7, 6 + ((seed * 13 + r * 29) % 22), 3);
+    const k = Math.floor(t * 2 + seed) % 4;
+    c.fillStyle = 'rgba(242,137,11,.28)'; c.fillRect(6 + k * 14, 4, 13, 52);
+    c.fillStyle = C.accent; c.fillRect(6 + k * 14, 4, 13, 2);
+  } else if (kind === 'chart') {
+    c.strokeStyle = 'rgba(255,255,255,.13)'; c.lineWidth = 1; c.beginPath();
+    for (let r = 1; r < 4; r++) { c.moveTo(4, 6 + r * 12); c.lineTo(w - 4, 6 + r * 12); } c.stroke();
+    c.fillStyle = 'rgba(95,179,201,.75)';
+    for (let b = 0; b < 9; b++) {
+      const hh = 8 + Math.abs(Math.sin(seed + b * .8 + t * .3)) * 34;
+      c.fillRect(6 + b * 10, 52 - hh, 6, hh);
+    }
+    c.strokeStyle = C.accent; c.lineWidth = 1.6; c.beginPath();
+    for (let b = 0; b < 9; b++) c.lineTo(9 + b * 10, 44 - Math.abs(Math.sin(seed + b * .8)) * 30);
+    c.stroke();
+  } else if (kind === 'chat') {
+    for (let m = 0; m < 5; m++) {
+      const left = m % 2 === 0, ww = 26 + ((seed * 7 + m * 17) % 34);
+      c.fillStyle = left ? 'rgba(255,255,255,.17)' : 'rgba(242,137,11,.30)';
+      c.beginPath(); c.roundRect(left ? 6 : w - 6 - ww, 5 + m * 12, ww, 8, 3); c.fill();
+    }
+    c.fillStyle = 'rgba(255,255,255,.5)'; c.fillRect(8, 62, 40 + Math.sin(t * 3) * 3, 2);
+  } else {
+    const cols = ['rgba(95,179,201,.7)', 'rgba(255,255,255,.28)', 'rgba(108,192,122,.7)', 'rgba(242,137,11,.6)'];
+    for (let r = 0; r < 9; r++) {
+      c.fillStyle = cols[(seed + r * 3) % 4];
+      c.fillRect(6 + (r % 3) * 6, 5 + r * 6.2, 14 + ((seed * 11 + r * 23) % 46), 2);
+    }
+    c.fillRect(6 + (Math.floor(t * 3) % 5) * 6, 5 + (Math.floor(t * 3) % 9) * 6.2, 8, 3);
+  }
+  c.globalAlpha = 1;
+}
+const screens = AGENTS.map(a => {
+  const c = document.createElement('canvas'); c.width = 84; c.height = 66;
+  const s = { c, cc: c.getContext('2d'), kind: KINDS[a.i % 4], seed: a.i * 3.7 + 1, dim: 0, a };
+  paintScreen(s.cc, s.kind, s.seed, 0, 0);
+  return s;
+});
+
+/* ---------- camera & state ---------- */
+let dpr = 1, paused = RM, speed = 1, night = false, sel = -1, hover = -1, simT = 0, clock = 9 * 60, done = 0;
+const cam = { s: 1, ox: 0, oy: 0, ts: 1, tox: 0, toy: 0, tween: 0 };
+const vw = () => cv.width / dpr, vh = () => cv.height / dpr;
+const log = [];
+const clockStr = () => String(Math.floor(clock / 60) % 24).padStart(2, '0') + ':' + String(Math.floor(clock % 60)).padStart(2, '0');
+
+/* ---------- simulation ---------- */
+const WALK = 1.45;
+const routeTo = (a, key) => {
+  const pl = PLACES[key], st = a.seat;
+  const pts = [[st.x, st.y], ...aisleOf(DESKS[a.i]), HUB, ...pl.via, pl.p];
+  return { pts, dx: pl.dx, dy: pl.dy, sit: pl.sit || 0 };
+};
+const routeHome = a => ({
+  pts: [[a.x, a.y], HUB, ...aisleOf(DESKS[a.i]).slice().reverse(), [a.seat.x, a.seat.y]],
+  dx: a.seat.dx, dy: a.seat.dy, sit: 1
+});
+function send(a, dest) { a.path = dest; a.leg = 0; a.px = a.x; a.py = a.y; a.state = 'aisle'; a.homeT = 0; }
+function returnHome(a) {
+  a.away = false; a.breakT = 0; a.meet = false; a.chat = false;
+  a.path = routeHome(a); a.leg = 0; a.px = a.x; a.py = a.y; a.sitTarget = 1; a.state = 'aisle';
+}
+function say(a, txt, secs) { a.say = txt; a.sayT = secs || 3.4; }
+function pushLog(who, txt) {
+  log.unshift({ t: clockStr(), who, txt }); if (log.length > 40) log.pop();
+  document.getElementById('feed-list').innerHTML = log.slice(0, 6)
+    .map(l => `<li><em>${l.t}</em><span><b>${l.who}</b> ${l.txt}</span></li>`).join('');
+}
+function finishTask(a) {
+  a.files = a.task[1].slice(0, 2); done++;
+  pushLog(a.n, 'shipped ' + a.files[0]);
+  a.log.unshift([clockStr(), 'Shipped ' + a.files[0]]); a.log.length = Math.min(a.log.length, 6);
+  a.ti = (a.ti + 1) % TASKS[a.r].length; a.task = TASKS[a.r][a.ti];
+  a.prog = 0; a.dur = 20 + Math.random() * 22;
+  say(a, a.files[0] + ' is out', 3.6);
+}
+function startMeeting() {
+  const pool = AGENTS.filter(a => a.state === 'work'); if (pool.length < 4) return;
+  for (const k of ['meetN', 'meetW', 'meetE', 'meetS']) {
+    const a = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    if (!a) break;
+    a.meet = true; a.away = true; send(a, routeTo(a, k));
+  }
+  say(AGENTS[0], 'Standup in the glass room', 4);
+  pushLog('Floor', 'standup started in the meeting room');
+}
+function startBreak(a) {
+  const k = ['coffee', 'cooler', 'sofa'][Math.floor(Math.random() * 3)];
+  a.away = true; a.breakT = 9 + Math.random() * 11; send(a, routeTo(a, k));
+  say(a, k === 'coffee' ? 'Coffee run' : k === 'sofa' ? 'Taking five' : 'Water break', 3);
+}
+function pickChatter() {
+  const free = AGENTS.filter(a => a.state === 'work' && !a.away); if (free.length < 2) return;
+  const a = free[Math.floor(Math.random() * free.length)];
+  a.away = true; a.chat = true; a.breakT = 7 + Math.random() * 6;
+  send(a, routeTo(a, a.i % 2 ? 'coffee' : 'cooler'));
+  say(a, 'Quick word?', 2.6);
+}
+function step(dt) {
+  simT += dt; clock += dt * .55;
+  if (Math.random() < dt * .012) startMeeting();
+  if (Math.random() < dt * .05) pickChatter();
+  for (const a of AGENTS) {
+    a.t += dt; if (a.sayT > 0) a.sayT -= dt;
+    if (a.thinkT > 0) { a.thinkT -= dt; if (a.thinkT <= 0) a.state = 'work'; }
+    for (const s of screens) if (s.a === a) s.dim = a.away ? Math.min(1, s.dim + dt * 2.5) : Math.max(0, s.dim - dt * 2.5);
+
+    if (a.state === 'aisle') {
+      a.sit = Math.max(0, a.sit - dt * 5);
+      let rem = WALK * dt;
+      const pts = a.path.pts;
+      while (rem > 0 && a.leg < pts.length - 1) {
+        const tgt = pts[a.leg + 1], dx = tgt[0] - a.px, dy = tgt[1] - a.py, len = Math.hypot(dx, dy);
+        if (len < .002) { a.leg++; continue; }
+        const stp = Math.min(rem, len); rem -= stp;
+        a.px += dx / len * stp; a.py += dy / len * stp; a.dirx = dx / len; a.diry = dy / len;
+        if (stp >= len - .002) a.leg++;
+      }
+      a.x = a.px; a.y = a.py; a.walkT += dt * 7.5;
+      if (a.leg >= pts.length - 1) {
+        a.dx = a.path.dx; a.dy = a.path.dy; a.sitTarget = a.path.sit;
+        if (a.meet) { a.state = 'meet'; a.meetT = 20 + Math.random() * 12; }
+        else if (a.breakT > 0) { a.state = 'break'; if (a.path.sit) a.sit = 1; }
+        else { a.state = a.path.sit ? 'sit' : 'stand'; }
+      }
+      continue;
+    }
+    if (a.state === 'break') {
+      a.sit += (a.sitTarget - a.sit) * Math.min(1, dt * 4);
+      a.breakT -= dt;
+      if (a.sayT <= 0 && Math.random() < dt * .12) say(a, ['Refilling', 'Good coffee today', 'Back in a minute', 'Stretching my legs'][Math.floor(Math.random() * 4)], 2.6);
+      if (a.breakT <= 0) returnHome(a);
+      continue;
+    }
+    if (a.state === 'meet') {
+      a.sit += (a.sitTarget - a.sit) * Math.min(1, dt * 4);
+      a.meetT -= dt;
+      if (a.sayT <= 0 && Math.random() < dt * .45) say(a, ['Have a look at this', 'I will take that one', 'Two blockers, one is small',
+        'Sending the file now', 'Agreed, ship it', 'Who owns the follow-up?', 'Numbers look clean'][Math.floor(Math.random() * 7)], 3);
+      if (a.meetT <= 0) returnHome(a);
+      continue;
+    }
+    if (a.state === 'sit' || a.state === 'stand') {
+      a.sit += (a.sitTarget - a.sit) * Math.min(1, dt * 4);
+      a.homeT += dt; if (a.homeT > 1.1) { a.state = 'work'; a.homeT = 0; }
+      continue;
+    }
+    /* at the desk */
+    a.sit = Math.min(1, a.sit + dt * 3);
+    if (a.think > 0) { a.think -= dt; if (a.think <= 0) a.state = 'work'; continue; }
+    if (Math.random() < dt * .05) { a.think = 1.6 + Math.random() * 2.2; a.state = 'think'; say(a, SAY_WORK[Math.floor(Math.random() * SAY_WORK.length)], 2.4); continue; }
+    if (Math.random() < dt * .022) { startBreak(a); continue; }
+    a.prog += dt / a.dur;
+    if (a.prog >= 1) finishTask(a);
+  }
+}
+const SAY_WORK = ['Drafting…', 'Crunching rows', 'Cross-checking', 'Writing it up', 'Refining', 'Querying', 'Reading the thread'];
+
+/* ---------- scene ---------- */
+function decals() {
+  diamond(9.6, 2.2, 12.4, 13.2, C.floor2);
+  diamond(10.2, 5.0, 11.2, 1.5, C.aisle);
+  diamond(9.8, 16.4, 7.6, 4.2, C.rug);
+  q([iso(9.8, 16.4), iso(17.4, 16.4), iso(17.4, 16.64), iso(9.8, 16.64)], C.rugEdge);
+  diamond(MEET.x0, MEET.y0, MEET.x1 - MEET.x0, MEET.y1 - MEET.y0, C.wood);
+  ctx.save();
+  ctx.beginPath();
+  [[MEET.x0, MEET.y0], [MEET.x1, MEET.y0], [MEET.x1, MEET.y1], [MEET.x0, MEET.y1]].forEach((p, i) => {
+    const s = iso(p[0], p[1]); i ? ctx.lineTo(s[0], s[1]) : ctx.moveTo(s[0], s[1]);
+  });
+  ctx.closePath(); ctx.clip();
+  for (let i = 1; i < 6; i++) {
+    const yy = MEET.y0 + i * (MEET.y1 - MEET.y0) / 6;
+    q([iso(MEET.x0 - 1, yy, 0), iso(MEET.x1 + 1, yy, 0), iso(MEET.x1 + 1, yy + .05, 0), iso(MEET.x0 - 1, yy + .05, 0)], C.woodLine);
+  }
+  ctx.restore();
+  diamond(19.8, 17.6, 2.8, 2.6, C.mat);
+  for (let i = 0; i < 5; i++)
+    q([iso(19.8 + i * .56, 17.6, 0), iso(19.84 + i * .56, 17.6, 0), iso(19.84 + i * .56, 20.2, 0), iso(19.8 + i * .56, 20.2, 0)], 'rgba(255,255,255,.05)');
+}
+function shell() {                                   // meeting room glass, drawn behind its contents
+  const gh = 1.5, x0 = MEET.x0, y0 = MEET.y0;
+  box(x0 - .1, y0, 0, .1, MEET.y1 - y0, gh, C.glassFrame);
+  box(x0, y0 - .1, 0, 3.4, .1, gh, C.glassFrame);
+  box(x0 + 4.4, y0 - .1, 0, MEET.x1 - x0 - 4.4, .1, gh, C.glassFrame);
+  box(x0 + 3.4, y0 - .1, 0, 1.0, .1, gh, '#333a41');
+  const gx = iso(x0, y0, gh), gx2 = iso(x0, MEET.y1, gh), gx3 = iso(x0, MEET.y1, 0), gx4 = iso(x0, y0, 0);
+  q([gx, gx2, gx3, gx4], C.glass);
+  const gy = iso(x0, y0, gh), gy2 = iso(MEET.x1, y0, gh), gy3 = iso(MEET.x1, y0, 0), gy4 = iso(x0, y0, 0);
+  q([gy, gy2, gy3, gy4], C.glass);
+}
+function meetingFurniture() {
+  const tx = 4.6, ty = 14.8, tw = 2.6, td = 1.8;
+  shadow(tx, ty, tw, td);
+  box(tx, ty, .5, tw, td, .1, C.counterTop, true);
+  ctx.strokeStyle = C.metal; ctx.lineWidth = 2.4;
+  [[tx + .25, ty + .25], [tx + tw - .25, ty + td - .25]].forEach(o => {
+    const p = iso(o[0], o[1]); ctx.beginPath(); ctx.moveTo(p[0], p[1] - 15); ctx.lineTo(p[0], p[1]); ctx.stroke();
+  });
+  box(5.75, 15.55, .6, .28, .28, .14, C.pot);
+  chair(5.9, 14.15, 0, -1); chair(5.9, 17.35, 0, 1);
+  chair(4.05, 15.7, 0, 1); chair(7.75, 15.7, 0, 1);
+}
+function meetingDisplay() {
+  const bx = 3.2, bz0 = 1.02, bz1 = 1.86;
+  box(bx + .78, 13.02, 0, .14, .14, bz0, C.metal);
+  box(bx - .06, 13.0, bz0, 1.82, .09, bz1 - bz0, C.bezel);
+  const p0 = iso(bx, 13.11, bz1 - .05), p1 = iso(bx + 1.7, 13.11, bz1 - .05), p3 = iso(bx, 13.11, bz0 + .05);
+  ctx.save(); ctx.transform((p1[0] - p0[0]) / 120, (p1[1] - p0[1]) / 120, (p3[0] - p0[0]) / 62, (p3[1] - p0[1]) / 62, p0[0], p0[1]);
+  ctx.fillStyle = '#101820'; ctx.fillRect(0, 0, 120, 62);
+  ctx.fillStyle = '#f2890b'; ctx.font = '650 10px ' + FONT; ctx.fillText('Standup · ' + clockStr(), 8, 14);
+  ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.font = '600 8.6px ' + FONT;
+  ['Blockers: nightly pipeline', 'Numbers: Q3 cash-flow', 'Owner: Ops lead'].forEach((s, i) => ctx.fillText('– ' + s, 10, 28 + i * 11));
+  ctx.fillStyle = 'rgba(95,179,201,.8)';
+  for (let b = 0; b < 14; b++) ctx.fillRect(62 + b * 4, 58 - (4 + Math.abs(Math.sin(b + simT * .3)) * 14), 2.5, 20);
+  ctx.restore();
+}
+function loungeCounter() {
+  const cw = 3.0;
+  shadow(11.6, 19.0, cw, 1.0);
+  box(11.6, 19.0, 0, cw, 1.0, .86, C.counter);
+  box(11.5, 18.94, .86, cw + .1, 1.1, .09, C.counterTop, true);
+  box(12.5, 19.3, .95, .8, .5, .5, C.machine);
+  const mp = iso(13.1, 19.15, 1.45);
+  ctx.fillStyle = night ? 'rgba(255,225,180,.5)' : 'rgba(255,255,255,.25)';
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath(); ctx.arc(mp[0] + Math.sin(simT * 1.4 + i) * 2, mp[1] - i * 3.4, 1.6 + i * .5, 0, 6.2832); ctx.fill();
+  }
+  box(13.7, 19.05, .95, .22, .22, .16, '#e9e4da');
+  box(11.9, 19.05, .95, .22, .22, .16, '#e9e4da');
+}
+function cooler() {
+  shadow(10.2, 17.9, .7, .7);
+  box(10.2, 17.9, 0, .66, .66, .95, C.cooler);
+  box(10.28, 17.98, .95, .5, .5, .42, C.coolerB);
+}
+function sofa() {
+  shadow(15.4, 17.6, 1.25, 2.0);
+  box(15.4, 17.6, .18, 1.25, 2.0, .26, C.sofa);
+  box(15.34, 17.6, .2, .22, 2.0, .78, sh(C.sofa, -.14));
+  box(15.4, 17.5, .2, 1.25, .16, .46, sh(C.sofa, .06));
+  box(15.4, 19.44, .2, 1.25, .16, .46, sh(C.sofa, .06));
+}
+function rack() {
+  shadow(22.6, .5, 1.2, 1.2);
+  box(22.6, .5, 0, 1.2, 1.2, 2.25, C.rack);
+  for (let i = 0; i < 11; i++) {
+    const p = iso(22.6, 1.7 - .06, .32 + i * .18);
+    ctx.fillStyle = Math.sin(simT * (2 + i % 3) + i) > .1 ? (i % 3 ? '#6cc07a' : '#f2890b') : 'rgba(255,255,255,.10)';
+    ctx.fillRect(p[0] + 3, p[1], 3, 2);
+  }
+  box(24.4, 4.2, 0, .9, .9, .6, '#5c6169');
+  box(24.45, 4.25, .6, .8, .8, .16, '#3f4349', true);
+  q([iso(24.5, 4.3, .77), iso(25.2, 4.3, .77), iso(25.2, 4.9, .77), iso(24.5, 4.9, .77)], '#e8e6e0');
+}
+function bench() {
+  box(21.0, 19.3, .42, 1.4, .5, .1, C.counter, true);
+  ctx.strokeStyle = C.metal; ctx.lineWidth = 2;
+  [[21.15, 19.45], [22.25, 19.65]].forEach(o => {
+    const p = iso(o[0], o[1]); ctx.beginPath(); ctx.moveTo(p[0], p[1] - 13); ctx.lineTo(p[0], p[1]); ctx.stroke();
+  });
+}
+function plant(x, y, s = 1) {
+  shadow(x, y, .55 * s, .55 * s);
+  box(x, y + .06 * s, 0, .5 * s, .5 * s, .42 * s, C.pot);
+  const p = iso(x + .25 * s, y + .25 * s, .45 * s);
+  for (let i = 0; i < 7; i++) {
+    const an = i * 1.02 + (x + y) * .3, r = (10 + ((i * 7) % 5) * 2.2) * s;
+    ctx.beginPath();
+    ctx.ellipse(p[0] + Math.cos(an) * r * .55, p[1] - 8 * s + Math.sin(an) * r * .32, r * .5, r * .28, an * .5, 0, 6.2832);
+    ctx.fillStyle = [C.leafA, C.leafB, C.leafC][i % 3]; ctx.fill();
+  }
+}
+function chair(x, y, dx, dy, occ) {
+  const s = .5, cx = x - dx * .18, cy = y - dy * .18, p = iso(cx, cy);
+  ctx.strokeStyle = C.metal; ctx.lineWidth = 1.6;
+  for (let i = 0; i < 5; i++) {
+    const an = i / 5 * 6.2832 + .5;
+    ctx.beginPath(); ctx.moveTo(p[0], p[1] - 3);
+    ctx.lineTo(p[0] + Math.cos(an) * 6, p[1] - 3 + Math.sin(an) * 3.2); ctx.stroke();
+  }
+  box(cx - s / 2, cy - s / 2, .34, s, s, .12, C.chair);
+  const bx = cx + dx * .22, by = cy + dy * .22;
+  box(bx - s / 2, by - s / 2, .46, s, s, occ ? .34 : .42, C.chairHi);
+}
+function desk(d) {
+  const a = AGENTS[d.i], isB = d.t === 'B';
+  const w = isB ? DESK_W : DESK_D, dep = isB ? DESK_D : DESK_W;
+  shadow(d.x, d.y, w + .15, dep + .15);
+  const sc = screens[a.i], mw = 1.05;
+  const mx = isB ? d.x + (w - mw) / 2 : d.x + .28;
+  const my = isB ? d.y + .22 : d.y + (dep - mw) / 2;
+  if (isB) box(mx, my, DESK_H, mw, .1, .40, C.metal); else box(mx, my, DESK_H, .1, mw, .40, C.metal);
+  const z0 = DESK_H + .16, z1 = z0 + .52;
+  const p0 = isB ? iso(mx + .05, my + .075, z1 - .05) : iso(mx + .075, my + mw - .05, z1 - .05);
+  const p1 = isB ? iso(mx + mw - .05, my + .075, z1 - .05) : iso(mx + .075, my + .05, z1 - .05);
+  const p3 = isB ? iso(mx + .05, my + .075, z0 + .05) : iso(mx + .075, my + mw - .05, z0 + .05);
+  if (isB) box(mx, my, z0, mw, .07, .52, C.bezel); else box(mx, my, z0, .07, mw, .52, C.bezel);
+  ctx.save(); ctx.transform((p1[0] - p0[0]) / 84, (p1[1] - p0[1]) / 84, (p3[0] - p0[0]) / 66, (p3[1] - p0[1]) / 66, p0[0], p0[1]);
+  ctx.drawImage(sc.c, 0, 0); ctx.restore();
+  box(d.x + .04, d.y + .04, DESK_H - .06, w - .08, dep - .08, .06, '#9ba1a8', true);
+  ctx.strokeStyle = C.metal; ctx.lineWidth = 2;
+  [[d.x + .18, d.y + .18], [d.x + w - .18, d.y + dep - .18]].forEach(o => {
+    const p = iso(o[0], o[1]);
+    ctx.beginPath(); ctx.moveTo(p[0], p[1] - DESK_H * ZU); ctx.lineTo(p[0], p[1]); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p[0] - 9, p[1]); ctx.lineTo(p[0] + 9, p[1]); ctx.stroke();
+  });
+  if (isB) box(d.x + w / 2 - .42, d.y + .62, DESK_H, .84, .3, .02, '#c8ccd2');
+  else box(d.x + .62, d.y + dep / 2 - .42, DESK_H, .3, .84, .02, '#c8ccd2');
+  const mugx = isB ? d.x + w - .38 : d.x + .3, mugy = isB ? d.y + .38 : d.y + dep - .38;
+  box(mugx, mugy, DESK_H, .17, .17, .2, a.shirt);
+  chair(a.seat.x, a.seat.y, a.seat.dx, a.seat.dy, a.state !== 'aisle');
+}
+function figure(a) {
+  const seated = a.state !== 'aisle' && a.sit > .04;
+  const [bx, by0] = iso(a.x, a.y, 0);
+  const by = by0 - (a.state === 'aisle' ? Math.abs(Math.sin(a.walkT)) * 1.3 : 0);
+  const bob = Math.sin(a.t * 1.6) * (seated ? .5 : .8);
+  const typing = a.state === 'work' && a.think <= 0;
+  const ty = Math.sin(a.t * 8.4) * (typing ? .9 : 0);
+  const shirt = a.shirt, skin = a.skin, hair = a.hair;
+  if (seated) {
+    const k = a.sit, hip = by - 12 * k, shd = by - (24 - 6 * (1 - k)), head = by - (30 - 8 * (1 - k)) + bob;
+    const ax = (a.seat.dx - a.seat.dy) * 5.5;
+    ctx.strokeStyle = sh(shirt, -.32); ctx.lineWidth = 3.6; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(bx - 3, hip); ctx.lineTo(bx - 3 + ax * .6, hip + 3);
+    ctx.moveTo(bx + 3, hip); ctx.lineTo(bx + 3 + ax * .6, hip + 3); ctx.stroke();
+    ctx.fillStyle = shirt; ctx.beginPath(); ctx.roundRect(bx - 6, shd, 12, hip - shd + 2, 4); ctx.fill();
+    ctx.fillStyle = sh(shirt, -.22); ctx.beginPath(); ctx.roundRect(bx + 1.5, shd + 1, 5, hip - shd, 3.4); ctx.fill();
+    ctx.strokeStyle = sh(shirt, -.05); ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+    const hx = bx + ax * .5, hy = hip - 4 + ty;
+    ctx.beginPath();
+    ctx.moveTo(bx - 5, shd + 3); ctx.lineTo(hx - 3.4, hy);
+    ctx.moveTo(bx + 5, shd + 3); ctx.lineTo(hx + 3.4, hy + ty * .5); ctx.stroke();
+    ctx.fillStyle = skin;
+    ctx.beginPath(); ctx.arc(hx - 3.4, hy + 1, 1.5, 0, 6.2832); ctx.arc(hx + 3.4, hy + 1, 1.5, 0, 6.2832); ctx.fill();
+    const hxx = bx + a.seat.dx * .8;
+    ctx.beginPath(); ctx.arc(hxx, head - 1.5, 5.1, 0, 6.2832); ctx.fill();
+    ctx.beginPath(); ctx.arc(hxx, head - 2.6, 5.1, -3.05, .95); ctx.fillStyle = hair; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(hxx - a.seat.dy * 3.4, head - 3.4, 3.2, 2.6, 0, 0, 6.2832); ctx.fill();
+  } else {
+    const sw = Math.sin(a.walkT) * 4.2, sw2 = Math.sin(a.walkT + 3.1416) * 4.2;
+    const mdx = a.dirx * 6, mdy = a.diry * 3;
+    const hip = by - 19, shd = by - 34 + bob, head = by - 41 + bob;
+    ctx.strokeStyle = '#2f3238'; ctx.lineWidth = 3.4; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(bx - 2.4, hip); ctx.lineTo(bx - 2.4 + sw + mdx * .3, by);
+    ctx.moveTo(bx + 2.4, hip); ctx.lineTo(bx + 2.4 + sw2 + mdx * .3, by); ctx.stroke();
+    ctx.fillStyle = shirt; ctx.beginPath(); ctx.roundRect(bx - 6.4, shd, 12.8, hip - shd + 2, 4.4); ctx.fill();
+    ctx.fillStyle = sh(shirt, -.22); ctx.beginPath(); ctx.roundRect(bx + 2, shd + 1.5, 5, hip - shd - 1, 3.4); ctx.fill();
+    ctx.strokeStyle = skin; ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.moveTo(bx - 5.6, shd + 4); ctx.lineTo(bx - 5.6 - sw2 * .8 - mdy, hip + 1);
+    ctx.moveTo(bx + 5.6, shd + 4); ctx.lineTo(bx + 5.6 - sw * .8 - mdy, hip + 1); ctx.stroke();
+    ctx.beginPath(); ctx.arc(bx, head - 1.5, 5.2, 0, 6.2832); ctx.fillStyle = skin; ctx.fill();
+    ctx.beginPath(); ctx.arc(bx, head - 2.8, 5.2, -3.05, .95); ctx.fillStyle = hair; ctx.fill();
+  }
+}
+function labelAt(wx, wy, text, o = {}) {
+  const sx = wx * cam.s + cam.ox, sy = wy * cam.s + cam.oy + (o.dy || 0);
+  ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const size = o.size || 10.5;
+  ctx.font = `${o.weight || 650} ${size}px ${FONT}`;
+  const tw = ctx.measureText(text).width, dot = o.dot, w = tw + 8 + (dot ? 11 : 0), h = size + 8;
+  ctx.beginPath(); ctx.roundRect(sx - w / 2, sy - h / 2, w, h, h / 2);
+  ctx.fillStyle = o.bg || 'rgba(21,20,18,.78)'; ctx.fill();
+  ctx.strokeStyle = o.edge || 'rgba(255,255,255,.10)'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.textBaseline = 'middle';
+  if (dot) {
+    ctx.beginPath(); ctx.arc(sx - w / 2 + 8.5, sy, 3, 0, 6.2832); ctx.fillStyle = dot; ctx.fill();
+    ctx.fillStyle = o.color || '#f4f0e9'; ctx.textAlign = 'left'; ctx.fillText(text, sx - w / 2 + 15.5, sy + .5);
+  } else {
+    ctx.fillStyle = o.color || '#f4f0e9'; ctx.textAlign = 'center'; ctx.fillText(text, sx, sy + .5);
+  }
+  ctx.restore();
+}
+function windows() {
+  const day = !night;
+  const pane = (pts, g0, g1) => {
+    ctx.save(); ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < 4; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+    const g = ctx.createLinearGradient(pts[0][0], pts[0][1], pts[2][0], pts[2][1]);
+    g.addColorStop(0, g0); g.addColorStop(1, g1);
+    ctx.fillStyle = g; ctx.fill(); ctx.clip();
+    return g;
+  };
+  for (const [y0, y1] of [[2.2, 7.2], [11.2, 16.2]]) {
+    const top = iso(.23, y0, 2.25), top2 = iso(.23, y1, 2.25), bot = iso(.23, y1, .95), bot2 = iso(.23, y0, .95);
+    pane([top, top2, bot, bot2], day ? '#c3dcec' : '#16233c', day ? '#83b3cf' : '#0b1220');
+    if (!day) for (let k = 0; k < 26; k++) {
+      const yy = y0 + ((k * 37) % 100) / 100 * (y1 - y0), zz = .95 + ((k * 61) % 100) / 100 * 1.3;
+      const p = iso(.23, yy, zz);
+      ctx.fillStyle = 'rgba(255,214,140,.55)'; ctx.fillRect(p[0], p[1], 1.4, 1.4);
+    }
+    ctx.restore();
+    for (let i = 1; i < 3; i++) {
+      const yy = y0 + (y1 - y0) * i / 3;
+      q([iso(.24, yy - .03, 2.25), iso(.24, yy + .03, 2.25), iso(.24, yy + .03, .95), iso(.24, yy - .03, .95)], 'rgba(20,20,24,.5)');
+    }
+    q([iso(.22, y0, 2.25), iso(.22, y1, 2.25), iso(.22, y1, .95), iso(.22, y0, .95)], 'rgba(0,0,0,0)');
+  }
+  const sx0 = 20.4, sx1 = 25.2;
+  const t1 = iso(sx0, .23, 2.25), t2 = iso(sx1, .23, 2.25), b1 = iso(sx1, .23, .95), b2 = iso(sx0, .23, .95);
+  pane([t1, t2, b1, b2], day ? '#cbdfee' : '#16233c', day ? '#8ab8d3' : '#0b1220');
+  if (!day) for (let k = 0; k < 18; k++) {
+    const xx = sx0 + ((k * 41) % 100) / 100 * (sx1 - sx0), zz = .95 + ((k * 53) % 100) / 100 * 1.3;
+    const p = iso(xx, .23, zz);
+    ctx.fillStyle = 'rgba(255,214,140,.5)'; ctx.fillRect(p[0], p[1], 1.4, 1.4);
+  }
+  ctx.restore();
+  for (let i = 1; i < 3; i++) {
+    const xx = sx0 + (sx1 - sx0) * i / 3;
+    q([iso(xx - .03, .24, 2.25), iso(xx + .03, .24, 2.25), iso(xx + .03, .24, .95), iso(xx - .03, .24, .95)], 'rgba(20,20,24,.5)');
+  }
+}
+function boardWall() {
+  const x0 = 12.8, x1 = 19.6, z0 = 1.3, z1 = 2.42;
+  box(x0 - .12, .23, z0 - .12, x1 - x0 + .24, .1, z1 - z0 + .24, C.bezel);
+  const p0 = iso(x0, .345, z1), p1 = iso(x1, .345, z1), p3 = iso(x0, .345, z0);
+  ctx.save();
+  ctx.transform((p1[0] - p0[0]) / 200, (p1[1] - p0[1]) / 200, (p3[0] - p0[0]) / 92, (p3[1] - p0[1]) / 92, p0[0], p0[1]);
+  ctx.fillStyle = '#0d1116'; ctx.fillRect(0, 0, 200, 92);
+  ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fillRect(0, 0, 200, 16);
+  ctx.fillStyle = '#8b93a1'; ctx.font = '600 9px ' + FONT; ctx.fillText('FLOOR BOARD · LIVE', 8, 11);
+  const st = AGENTS.reduce((o, a) => (o[a.state] = (o[a.state] || 0) + 1, o), {});
+  ctx.fillStyle = '#f4f0e9'; ctx.font = '650 15px ' + MONO; ctx.fillText(clockStr(), 8, 34);
+  ctx.font = '600 9.5px ' + FONT;
+  ctx.fillStyle = '#6cc07a'; ctx.fillText(((st.work || 0) + (st.sit || 0) + (st.think || 0)) + ' working at desks', 66, 25);
+  ctx.fillStyle = '#6aa9e0'; ctx.fillText(((st.aisle || 0) + (st.stand || 0)) + ' in the aisles', 66, 39);
+  ctx.fillStyle = '#e0a94a'; ctx.fillText((st.meet || 0) + ' in the meeting room', 66, 53);
+  ctx.fillStyle = '#4fb3a5'; ctx.fillText(st.break || 0 ? (st.break || 0) + ' on a break' : 'no one on a break', 66, 67);
+  ctx.fillStyle = '#a9a094'; ctx.font = '600 9px ' + FONT;
+  ctx.fillText(done + ' files shipped this shift', 66, 84);
+  ctx.fillStyle = 'rgba(95,179,201,.85)';
+  for (let b = 0; b < 24; b++) {
+    const h = 4 + Math.abs(Math.sin(b * .7 + simT * .25)) * 16;
+    ctx.fillRect(8 + b * 4, 88 - h, 2.4, h);
+  }
+  ctx.restore();
+}
+
+/* ---------- draw ---------- */
+const STATIC = [
+  { z: 30.6, f: loungeCounter }, { z: 28.2, f: cooler }, { z: 33, f: sofa }, { z: 23.1, f: rack },
+  { z: 40.3, f: bench }, { z: 13.3, f: meetingDisplay }, { z: 19.4, f: meetingFurniture },
+  ...PLANTS.map(p => ({ z: p[0] + p[1], f: () => plant(p[0], p[1], 1) }))
+];
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const g = ctx.createLinearGradient(0, 0, 0, vh());
+  g.addColorStop(0, night ? '#0e0f13' : '#1a1b1f'); g.addColorStop(1, night ? '#07080a' : '#121216');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, vw(), vh());
+  ctx.setTransform(dpr * cam.s, 0, 0, dpr * cam.s, dpr * cam.ox, dpr * cam.oy);
+
+  diamond(0, 0, W, D, C.floor);
+  ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+  for (let i = 0; i <= W; i += 2) { const p1 = iso(i, 0), p2 = iso(i, D); ctx.beginPath(); ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); ctx.stroke(); }
+  for (let j = 0; j <= D; j += 2) { const p1 = iso(0, j), p2 = iso(W, j); ctx.beginPath(); ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); ctx.stroke(); }
+  decals();
+  if (night) for (let x = 3; x < 24; x += 5.2) {
+    const p = iso(x, x * .9 + 2), r = 92;
+    const rg = ctx.createRadialGradient(p[0], p[1], 2, p[0], p[1], r);
+    rg.addColorStop(0, 'rgba(255,196,120,.11)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath(); ctx.ellipse(p[0], p[1], r, r * .5, 0, 0, 6.2832); ctx.fillStyle = rg; ctx.fill();
+  }
+  box(0, 0, 0, .22, D + .22, WALL_H, C.wall);
+  box(0, 0, 0, W + .22, .22, WALL_H, C.wall);
+  windows();
+  boardWall();
+  shell();
+
+  const list = [];
+  DESKS.forEach((d, i) => list.push({ z: d.x + d.y, f: () => desk(Object.assign(d, { i })) }));
+  STATIC.forEach(s => list.push(s));
+  AGENTS.forEach(a => list.push({ z: a.x + a.y + .02, f: () => agentBit(a) }));
+  list.sort((p, r) => p.z - r.z);
+  for (const it of list) it.f();
+
+  if (night) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = 'rgba(12,16,32,.20)'; ctx.fillRect(0, 0, vw(), vh()); }
+}
+function agentBit(a) {
+  shadow(a.x - .28, a.y - .28, .56, .56);
+  const sp = iso(a.x, a.y, 0);
+  figure(a);
+  const isSel = sel === a.i, isHov = hover === a.i;
+  labelAt(sp[0], sp[1], a.n, {
+    dy: a.state === 'aisle' ? -56 : -50, dot: a.away ? '#4fb3a5' : (STCOL[a.state] || '#6cc07a'),
+    bg: isSel ? 'rgba(242,137,11,.92)' : isHov ? 'rgba(48,45,40,.94)' : 'rgba(21,20,18,.78)',
+    color: isSel ? '#1a1305' : '#f4f0e9', edge: isSel ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.10)'
+  });
+  if (a.sayT > 0 && a.say) {
+    ctx.save(); ctx.globalAlpha = Math.min(1, a.sayT);
+    labelAt(sp[0], sp[1], a.say, { dy: -74, weight: 600, size: 10.5, bg: 'rgba(30,28,25,.94)', color: '#e8e1d5' });
+    ctx.restore();
+  }
+  if (isSel) {
+    ctx.save(); ctx.globalAlpha = .5 + Math.sin(simT * 3) * .2;
+    ctx.strokeStyle = C.accent; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(...iso(a.x - .8, a.y, 0)); ctx.lineTo(...iso(a.x + .8, a.y, 0));
+    ctx.lineTo(...iso(a.x, a.y + .8, 0)); ctx.lineTo(...iso(a.x, a.y - .8, 0)); ctx.closePath(); ctx.stroke();
+    ctx.restore();
+  }
+  if (a.away) {
+    const ds = iso(a.seat.x, a.seat.y, 0);
+    labelAt(ds[0], ds[1], a.n + ' · away', { dy: -34, size: 9.5, weight: 600, bg: 'rgba(20,19,18,.6)', color: '#a9a094' });
+  }
+}
+function layout() {
+  dpr = Math.min(2, devicePixelRatio || 1);
+  cv.width = innerWidth * dpr; cv.height = innerHeight * dpr;
+  const x0 = -D * TW, x1 = W * TW, y0 = -WALL_H * ZU, y1 = (W + D) * TH, pad = 54;
+  cam.s = Math.min((vw() - pad * 2) / (x1 - x0), (vh() - pad * 2) / (y1 - y0));
+  cam.ox = vw() / 2 - (x0 + x1) / 2 * cam.s;
+  cam.oy = vh() / 2 - (y0 + y1) / 2 * cam.s + 14;
+  cam.ts = cam.s; cam.tox = cam.ox; cam.toy = cam.oy; cam.tween = 0;
+}
+addEventListener('resize', layout);
+function zoomAt(f, cx, cy) {
+  const ns = Math.max(.3, Math.min(2.6, cam.s * f)), k = ns / cam.s;
+  cam.ox = cx - (cx - cam.ox) * k; cam.oy = cy - (cy - cam.oy) * k;
+  cam.s = ns; cam.ts = ns; cam.tox = cam.ox; cam.toy = cam.oy; cam.tween = 0;
+}
+function toTile(px, py) {
+  const wx = (px - cam.ox) / cam.s, wy = (py - cam.oy) / cam.s;
+  return [wx / 64 + wy / 32, wy / 32 - wx / 64];
+}
+function pick(px, py, rad) {
+  const [tx, ty] = toTile(px, py);
+  let best = -1, bd = rad;
+  AGENTS.forEach(a => { const d = Math.hypot(a.x - tx, a.y - ty); if (d < bd) { bd = d; best = a.i; } });
+  if (best < 0) DESKS.forEach((d, i) => {
+    const cx = d.x + (d.t === 'B' ? DESK_W / 2 : DESK_D / 2), cy = d.y + (d.t === 'B' ? DESK_D / 2 : DESK_W / 2);
+    const dd = Math.hypot(cx - tx, cy - ty); if (dd < bd) { bd = dd; best = i; }
+  });
+  return best;
+}
+let drag = null;
+cv.addEventListener('pointerdown', e => {
+  cv.setPointerCapture(e.pointerId); cv.classList.add('drag');
+  drag = { x: e.clientX, y: e.clientY, ox: cam.ox, oy: cam.oy, moved: 0 };
+});
+cv.addEventListener('pointermove', e => {
+  if (drag) {
+    drag.moved += Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y);
+    cam.ox = drag.ox + (e.clientX - drag.x); cam.oy = drag.oy + (e.clientY - drag.y);
+    cam.tox = cam.ox; cam.toy = cam.oy; cam.tween = 0;
+    return;
+  }
+  const h = pick(e.clientX, e.clientY, 1.05);
+  if (h !== hover) { hover = h; cv.style.cursor = h >= 0 ? 'pointer' : 'grab'; }
+});
+cv.addEventListener('pointerup', e => {
+  cv.classList.remove('drag');
+  const moved = drag && drag.moved > 5; drag = null;
+  if (moved) return;
+  const i = pick(e.clientX, e.clientY, 1.2);
+  if (i >= 0) focusAgent(i); else { sel = -1; document.getElementById('card').classList.add('hide'); renderRoster(); }
+});
+cv.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.12 : 1 / 1.12, e.clientX, e.clientY); }, { passive: false });
+addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  else if (e.key === 'Escape') { sel = -1; document.getElementById('card').classList.add('hide'); renderRoster(); }
+  else if (e.key === 'ArrowLeft') { cam.ox += 40; cam.tox = cam.ox; }
+  else if (e.key === 'ArrowRight') { cam.ox -= 40; cam.tox = cam.ox; }
+  else if (e.key === 'ArrowUp') { cam.oy += 40; cam.toy = cam.oy; }
+  else if (e.key === 'ArrowDown') { cam.oy -= 40; cam.toy = cam.oy; }
+  else if (e.key === '+' || e.key === '=') zoomAt(1.14, vw() / 2, vh() / 2);
+  else if (e.key === '-' || e.key === '_') zoomAt(1 / 1.14, vw() / 2, vh() / 2);
+});
+
+/* ---------- UI ---------- */
+const ROS = document.getElementById('roster-list');
+AGENTS.forEach(a => {
+  const li = document.createElement('li');
+  li.innerHTML = `<span class="av" style="background:${a.shirt}">${a.n.slice(0, 2)}</span>
+    <span class="who"><span class="nm">${a.n}</span><span class="tk">${a.r}</span></span>
+    <span class="chip" data-s="working">Working</span>`;
+  li.tabIndex = 0; li.dataset.i = a.i;
+  li.addEventListener('click', () => focusAgent(a.i));
+  li.addEventListener('keydown', e => { if (e.key === 'Enter') focusAgent(a.i); });
+  ROS.appendChild(li);
+});
+function renderRoster() {
+  AGENTS.forEach((a, i) => {
+    const li = ROS.children[i]; if (!li) return;
+    const chip = li.querySelector('.chip');
+    const s = a.meet ? 'meeting' : a.away ? 'break' : a.state === 'aisle' ? 'aisle' : 'working';
+    chip.dataset.s = s;
+    chip.textContent = a.meet ? 'Meeting' : a.away ? 'Break' : (STNAME[a.state] || 'Working');
+    li.querySelector('.tk').textContent = a.away ? (a.meet ? 'In the glass room' : 'Away from desk') : a.task[0];
+    li.setAttribute('aria-current', sel === i ? 'true' : 'false');
+  });
+  const st = AGENTS.reduce((o, a) => (o[a.state] = (o[a.state] || 0) + 1, o), {});
+  document.getElementById('s-work').textContent = (st.work || 0) + (st.sit || 0) + (st.think || 0);
+  document.getElementById('s-walk').textContent = (st.aisle || 0) + (st.stand || 0);
+  document.getElementById('s-away').textContent = AGENTS.filter(a => a.away).length;
+  document.getElementById('s-done').textContent = done;
+  document.getElementById('clock').textContent = clockStr();
+  document.getElementById('roster-count').textContent = AGENTS.length;
+  document.getElementById('brandsub').textContent = `${AGENTS.length} agents · one desk each · ${done} files shipped`;
+}
+function renderCard(i) {
+  const a = AGENTS[i], card = document.getElementById('card');
+  if (i < 0) { card.classList.add('hide'); return; }
+  card.classList.remove('hide');
+  const av = document.getElementById('c-av');
+  av.textContent = a.n.slice(0, 2); av.style.background = a.shirt;
+  document.getElementById('c-name').textContent = a.n;
+  document.getElementById('c-role').textContent = `${a.r} · desk ${String(a.i + 1).padStart(2, '0')} · ${a.meet ? 'in a meeting' : a.away ? 'away' : (STNAME[a.state] || 'working')}`;
+  document.getElementById('c-task').textContent = a.meet ? 'Standup in the meeting room' : a.away ? 'Stepped away — the desk is idle' : a.task[0];
+  document.getElementById('c-bar').style.width = Math.round(Math.min(1, Math.max(0, a.prog)) * 100) + '%';
+  document.getElementById('c-files').innerHTML = (a.files.length ? a.files : ['no file yet']).map(f => `<span>${f}</span>`).join('');
+  document.getElementById('c-log').innerHTML = (a.log.length ? a.log : [[clockStr(), 'Started ' + a.task[0]]])
+    .slice(0, 4).map(l => `<li><em>${l[0]}</em><span>${l[1]}</span></li>`).join('');
+}
+function focusAgent(i) {
+  sel = i; const a = AGENTS[i], p = iso(a.x, a.y, 0);
+  const s = Math.max(cam.s, .88);
+  cam.ts = s; cam.tox = vw() / 2 - p[0] * s; cam.toy = vh() * .56 - p[1] * s; cam.tween = 1;
+  renderCard(i); renderRoster();
+}
+function syncPlay() {
+  document.getElementById('b-play-lbl').textContent = paused ? 'Play' : 'Pause';
+  document.getElementById('i-play').innerHTML = paused
+    ? '<path d="M8 5.4 18.5 12 8 18.6Z" fill="currentColor" stroke="none"/>'
+    : '<path d="M8 5.5v13M16 5.5v13"/>';
+  document.getElementById('shiftlbl').textContent = paused ? 'Shift · paused' : 'Shift · running';
+}
+function togglePlay() { paused = !paused; syncPlay(); }
+document.getElementById('b-play').addEventListener('click', togglePlay);
+document.getElementById('b-speed').addEventListener('click', e => {
+  speed = speed === 1 ? 2 : speed === 2 ? 4 : 1;
+  e.currentTarget.textContent = speed + '×';
+});
+document.getElementById('b-zin').addEventListener('click', () => zoomAt(1.16, vw() / 2, vh() / 2));
+document.getElementById('b-zout').addEventListener('click', () => zoomAt(1 / 1.16, vw() / 2, vh() / 2));
+document.getElementById('b-night').addEventListener('click', () => {
+  night = !night;
+  document.getElementById('i-sun').innerHTML = night
+    ? '<path d="M20.2 14.6A8.3 8.3 0 0 1 9.4 3.8a8.3 8.3 0 1 0 10.8 10.8Z"/>'
+    : '<circle cx="12" cy="12" r="4.1"/><path d="M12 2.8v2.3M12 18.9v2.3M2.8 12h2.3M18.9 12h2.3M5.5 5.5l1.6 1.6M16.9 16.9l1.6 1.6M18.5 5.5l-1.6 1.6M7.1 16.9l-1.6 1.6"/>';
+});
+document.getElementById('b-reset').addEventListener('click', () => { layout(); sel = -1; document.getElementById('card').classList.add('hide'); renderRoster(); });
+document.getElementById('b-roster').addEventListener('click', () => document.getElementById('roster').classList.toggle('open'));
+
+/* ---------- boot ---------- */
+pushLog('Floor', 'shift started — 10 desks, 10 agents');
+layout(); renderRoster(); syncPlay();
+let last = performance.now(), uiT = 0, scrT = 0;
+function frame(now) {
+  const dtR = Math.min(.05, (now - last) / 1000); last = now;
+  if (!paused) step(dtR * speed);
+  scrT += dtR;
+  if (scrT > .22) {
+    scrT = 0;
+    screens.forEach(s => { if (Math.random() < .5) paintScreen(s.cc, s.kind, s.seed, simT, s.dim); });
+  }
+  if (cam.tween > 0) {
+    cam.tween = Math.max(0, cam.tween - dtR * 1.6);
+    const k = RM ? 1 : .16;
+    cam.s += (cam.ts - cam.s) * k; cam.ox += (cam.tox - cam.ox) * k; cam.oy += (cam.toy - cam.oy) * k;
+    if (cam.tween === 0) { cam.s = cam.ts; cam.ox = cam.tox; cam.oy = cam.toy; }
+  }
+  draw();
+  uiT += dtR;
+  if (uiT > .5) { uiT = 0; renderRoster(); if (sel >= 0) renderCard(sel); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

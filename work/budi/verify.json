@@ -1,0 +1,66 @@
+{
+  "agent": "Budi",
+  "checked_at": "2026-10-12 15:05:32",
+  "artifacts": [
+    "work/budi/raw.csv",
+    "work/budi/summary.json",
+    "work/budi/demo-report.md",
+    "work/budi/verify.json"
+  ],
+  "checks": [
+    {
+      "check": "raw.csv row count == 60",
+      "ok": true,
+      "detail": "raw.csv has 60 data rows"
+    },
+    {
+      "check": "summary rows == raw.csv rows",
+      "ok": true,
+      "detail": "summary says 60, raw.csv has 60"
+    },
+    {
+      "check": "mean temp reproduced from raw.csv",
+      "ok": true,
+      "detail": "recomputed 18.77 vs summary 18.77"
+    },
+    {
+      "check": "total rainfall reproduced from raw.csv",
+      "ok": true,
+      "detail": "recomputed 181.80 vs summary 181.8"
+    },
+    {
+      "check": "per-station rows sum to total",
+      "ok": true,
+      "detail": "per_station total 60"
+    },
+    {
+      "check": "station East mean temp reproduced",
+      "ok": true,
+      "detail": "recomputed 17.66 vs summary 17.66"
+    },
+    {
+      "check": "station North mean temp reproduced",
+      "ok": true,
+      "detail": "recomputed 19.04 vs summary 19.04"
+    },
+    {
+      "check": "station South mean temp reproduced",
+      "ok": true,
+      "detail": "recomputed 19.59 vs summary 19.59"
+    },
+    {
+      "check": "report quotes the real mean temp",
+      "ok": true,
+      "detail": "looking for 18.77 in demo-report.md"
+    },
+    {
+      "check": "report quotes the real total rainfall",
+      "ok": true,
+      "detail": "looking for 181.8 in demo-report.md"
+    }
+  ],
+  "passed": 10,
+  "failed": 0,
+  "result": "PASS",
+  "step4_elapsed_s": 0.0009
+}

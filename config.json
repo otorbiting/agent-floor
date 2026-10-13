@@ -1,0 +1,41 @@
+{
+  "_readme": "Fill in sheet.sheet_id / sheet.gid and upload.url. Every other field has a working default. Run: python daily_sync.py --check",
+
+  "sheet": {
+    "sheet_id": "",
+    "gid": "",
+    "sheet_name": "",
+    "export_url": "",
+    "expected_columns": [],
+    "min_rows": 2,
+    "timeout_seconds": 60,
+    "retries": 3,
+    "retry_backoff_seconds": 2
+  },
+
+  "download": {
+    "dir": "downloads",
+    "filename_pattern": "sheet-{date}.csv",
+    "latest_copy": "latest.csv",
+    "manifest": true
+  },
+
+  "upload": {
+    "mode": "http",
+    "url": "",
+    "form_url": "",
+    "method": "POST",
+    "file_field": "file",
+    "upload_filename": "",
+    "content_type": "",
+    "extra_fields": {},
+    "headers": {},
+    "expected_status": [200, 201, 202, 204],
+    "timeout_seconds": 120
+  },
+
+  "logging": {
+    "enabled": true,
+    "dir": "logs"
+  }
+}
