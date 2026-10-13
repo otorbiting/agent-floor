@@ -88,4 +88,4 @@ Import this repository in Vercel and deploy it from the project root. `vercel.js
 
 ## Running it daily
 
-Once the two values are in place and a real run succeeds, this can be attached to a daily schedule at a time you choose — say the word and I will set it up. Until the config is filled, a schedule would only produce daily failures.
+A separate daily repository-maintenance automation checks for evidence-based improvements and opens a pull request only when it finds worthwhile work. This is separate from the data sync: configure and verify the two required values before scheduling `daily_sync.py`, or the sync would produce daily failures.
