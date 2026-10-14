@@ -69,7 +69,7 @@ Do not paste tokens or passwords into `config.json`. Reference the environment i
 python selftest.py
 ```
 
-Runs the whole pipeline against a throwaway local server — download, column check, multipart upload, response handling — plus the failure paths (private sheet, changed columns, dead endpoint, incomplete config). 25 checks, no accounts or network needed. It currently passes.
+Runs the whole pipeline against a throwaway local server — download, column check, multipart upload, response handling — plus the failure paths (private sheet, changed columns, trailing blank headers, dead endpoint, incomplete config). 27 checks, no accounts or network needed.
 
 ## Run the Agent Floor UI locally
 

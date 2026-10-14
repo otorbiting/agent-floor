@@ -224,8 +224,8 @@ def validate_csv(body, sheet):
                                   % (", ".join(missing), ", ".join(header)),
                                   hint="the sheet layout may have changed; fix config or the sheet")
 
-    if bool(sheet.get("forbid_trailing_blank_header", True)) and header and not header[0]:
-        raise ValidationError("first column has an empty header")
+    if bool(sheet.get("forbid_trailing_blank_header", True)) and header and not header[-1]:
+        raise ValidationError("last column has an empty header")
     return len(rows), header
 
 
