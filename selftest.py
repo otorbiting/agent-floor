@@ -19,6 +19,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPT = os.path.join(HERE, "daily_sync.py")
 
 CSV_BODY = b"id,name,amount\r\n1,alpha,10\r\n2,beta,20\r\n3,gamma,30\r\n"
+BLANK_HEADER_CSV_BODY = b"id,name,amount,\r\n1,alpha,10,\r\n2,beta,20,\r\n"
 RECEIVED = {"upload": None, "multipart_head": None}
 
 failures = []
@@ -41,6 +42,12 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(CSV_BODY)))
             self.end_headers()
             self.wfile.write(CSV_BODY)
+        elif self.path.startswith("/blank-header.csv"):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv; charset=utf-8")
+            self.send_header("Content-Length", str(len(BLANK_HEADER_CSV_BODY)))
+            self.end_headers()
+            self.wfile.write(BLANK_HEADER_CSV_BODY)
         elif self.path.startswith("/private"):
             page = b"<!DOCTYPE html><html><body>Sign in to continue</body></html>"
             self.send_response(200)
@@ -146,13 +153,22 @@ def main():
         check("column drift stops the run", proc.returncode == 3, proc.stdout)
         check("nothing was uploaded on validation failure", RECEIVED["upload"] is None)
 
-        # 6. dry run -> downloads, does not upload
+        # 6. a trailing blank header must be rejected before upload
+        RECEIVED["upload"] = None
+        cfg = base_cfg(base_url)
+        cfg["sheet"]["export_url"] = base_url + "/blank-header.csv"
+        proc, _, _ = run_case(cfg)
+        check("trailing blank header stops the run",
+              proc.returncode == 3 and "last column has an empty header" in proc.stdout, proc.stdout)
+        check("nothing was uploaded for a blank trailing header", RECEIVED["upload"] is None)
+
+        # 7. dry run -> downloads, does not upload
         RECEIVED["upload"] = None
         proc, _, _ = run_case(base_cfg(base_url), ["--dry-run"])
         check("dry run exits 0", proc.returncode == 0, proc.stdout)
         check("dry run does not upload", RECEIVED["upload"] is None)
 
-        # 7. unreachable upload endpoint -> exit 4
+        # 8. unreachable upload endpoint -> exit 4
         cfg = base_cfg(base_url)
         cfg["upload"]["url"] = "http://127.0.0.1:1/upload"
         proc, _, _ = run_case(cfg)
