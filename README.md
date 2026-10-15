@@ -82,6 +82,7 @@ Import this repository in Vercel and deploy it from the project root. `vercel.js
 ## Safety nets built in
 
 - An empty or half-written export is refused before upload (`sheet.min_rows`).
+- A trailing blank CSV header is refused by default (`sheet.forbid_trailing_blank_header`).
 - `sheet.expected_columns` stops the run if the sheet's columns change, so a restructured sheet can't silently overwrite the site with wrong data.
 - Downloads retry on transient `429/5xx` and network errors.
 - The CSV is only uploaded after it is validated and saved, so a failed upload still leaves you today's file.

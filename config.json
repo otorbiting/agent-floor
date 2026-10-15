@@ -8,6 +8,7 @@
     "export_url": "",
     "expected_columns": [],
     "min_rows": 2,
+    "forbid_trailing_blank_header": true,
     "timeout_seconds": 60,
     "retries": 3,
     "retry_backoff_seconds": 2
