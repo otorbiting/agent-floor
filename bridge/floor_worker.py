@@ -23,6 +23,7 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 import os
 import random
 import sys
@@ -33,6 +34,26 @@ import urllib.request
 DEFAULT_URL = os.environ.get("FLOOR_URL", "http://127.0.0.1:8787")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORK = os.path.join(ROOT, "work")
+
+
+def positive_float(value):
+    try:
+        number = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("must be a number greater than zero")
+    if not math.isfinite(number) or number <= 0:
+        raise argparse.ArgumentTypeError("must be greater than zero")
+    return number
+
+
+def nonnegative_int(value):
+    try:
+        number = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("must be a non-negative integer")
+    if number < 0:
+        raise argparse.ArgumentTypeError("must be non-negative")
+    return number
 
 
 def call(url, path, payload=None, method=None, timeout=6.0):
@@ -187,6 +208,10 @@ def targets(url, only, quiet):
 
 def serve(url, only=(), interval=1.5, max_tasks=0, quiet=False, once=False):
     """One task at a time per agent, in queue order, forever (or once / until max_tasks)."""
+    if not math.isfinite(interval) or interval <= 0:
+        raise ValueError("worker interval must be greater than zero")
+    if max_tasks < 0:
+        raise ValueError("maximum task count must be non-negative")
     done = 0
     while True:
         moved = False
@@ -208,9 +233,9 @@ def main():
     ap = argparse.ArgumentParser(description="Do the work assigned on the Agent Floor.")
     ap.add_argument("--url", default=DEFAULT_URL)
     ap.add_argument("--agent", action="append", default=[], help="serve only this agent (repeatable)")
-    ap.add_argument("--interval", type=float, default=1.5)
+    ap.add_argument("--interval", type=positive_float, default=1.5)
     ap.add_argument("--once", action="store_true", help="one pass, then exit")
-    ap.add_argument("--max", type=int, default=0, help="stop after N tasks (0 = unlimited)")
+    ap.add_argument("--max", type=nonnegative_int, default=0, help="stop after N tasks (0 = unlimited)")
     ap.add_argument("--quiet", action="store_true")
     p = ap.parse_args()
 

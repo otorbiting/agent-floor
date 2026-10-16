@@ -46,7 +46,7 @@ python bridge\floor_producer.py done     --agent Nadia --file work\nadia\vendors
 python bridge\floor_producer.py reset
 ```
 
-Exit code is non-zero if the bridge is unreachable, so a pipeline can ignore it safely.
+Exit code is non-zero if the bridge is unreachable or rejects an event, so a pipeline can detect a report that was not accepted.
 
 ### Or let the bridge watch a folder
 
@@ -57,6 +57,8 @@ python bridge\agent_floor_bridge.py --watch "Nadia=C:\work\nadia" --watch "Yusuf
 # or, from inside a running pipeline:
 python bridge\floor_producer.py watch --agent Nadia --dir C:\work\nadia
 ```
+
+The watched directory must already exist, and its polling interval must be greater than zero.
 
 ### Or append to a JSONL
 
@@ -94,6 +96,8 @@ The same panel edits the selected agent and the change is live on the floor:
 | **from / to** | work time as a shift window, `HH:MM` (empty = always on) | outside the window the agent shows **Off shift**, is not assigned/claimed work, and keeps queued tasks for later (windows may cross midnight) |
 | **skills** | comma-separated tags | kept on the record, shown on the agent's card, and readable by any external dispatcher |
 
+Shift times must be valid 24-hour `HH:MM` values; an empty value means no boundary.
+
 ```powershell
 curl -X POST http://127.0.0.1:8787/agent/update -d '{"agent":"Rina","name":"Rina Putri","skills":"research, sql","shiftFrom":"09:00","shiftTo":"18:00"}'
 ```
@@ -108,6 +112,8 @@ python bridge\floor_worker.py --agent Rina    # only Rina
 python bridge\floor_worker.py --once          # one pass, then exit
 python bridge\floor_worker.py --max 3         # stop after 3 tasks
 ```
+
+Worker polling intervals must be greater than zero; `--max` accepts zero (unlimited) or a positive task count.
 
 `floor_worker.py` is the reference worker: it claims by HTTP, does a real deterministic job for the task's kind, and reports the produced file. **It never executes shell commands from a task title** — a title is text, the work is the kind:
 

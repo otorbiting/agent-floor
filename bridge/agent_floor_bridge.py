@@ -19,6 +19,7 @@ Standard library only. Binds to 127.0.0.1 unless you say otherwise.
 """
 import argparse
 import json
+import math
 import os
 import sys
 import threading
@@ -110,6 +111,16 @@ def hhmm(value, default):
         return default
 
 
+def valid_shift_time(value):
+    if not value:
+        return True
+    parts = str(value).split(":")
+    if len(parts) != 2 or any(len(part) != 2 or not part.isdigit() for part in parts):
+        return False
+    hour, minute = (int(part) for part in parts)
+    return 0 <= hour < 24 and 0 <= minute < 60
+
+
 def on_shift(a):
     """Empty shift = always on. Handles windows that cross midnight."""
     f, t = a.get("shiftFrom") or "", a.get("shiftTo") or ""
@@ -122,6 +133,10 @@ def on_shift(a):
 
 
 def update_agent(name, ev):
+    for field in ("shiftFrom", "shiftTo"):
+        value = str(ev.get(field) or "").strip()
+        if field in ev and not valid_shift_time(value):
+            return {"ok": False, "error": "%s must be empty or a valid HH:MM time" % field}
     with LOCK:
         a = find_agent(name) or agent_of(name)
         old = a["name"]
@@ -134,8 +149,7 @@ def update_agent(name, ev):
             a["skills"] = [str(s).strip()[:24] for s in sk if str(s).strip()][:8]
         for f in ("shiftFrom", "shiftTo"):
             if f in ev:
-                v = str(ev[f] or "").strip()[:5]
-                a[f] = v if not v or len(v.split(":")) == 2 else a[f]
+                a[f] = str(ev[f] or "").strip()
         if a["name"] != old:
             log_floor(a["name"], "renamed from " + old)
         if "skills" in ev:
@@ -499,7 +513,8 @@ class Handler(BaseHTTPRequestHandler):
             if not (ev.get("agent") or ev.get("name")):
                 self._json(400, {"ok": False, "error": "missing agent"})
                 return
-            self._json(200, update_agent(ev.get("agent") or ev.get("name"), ev))
+            out = update_agent(ev.get("agent") or ev.get("name"), ev)
+            self._json(200 if out.get("ok") else 400, out)
             return
         elif path != "/event":
             self._json(404, {"ok": False, "error": "unknown path"})
@@ -576,20 +591,30 @@ def tail_loop(path, interval):
 def main():
     global ARGS
     ap = argparse.ArgumentParser(description="Bridge real agent activity onto the Agent Floor scene.")
+
+    def positive_float(value):
+        try:
+            number = float(value)
+        except ValueError:
+            raise argparse.ArgumentTypeError("must be a number greater than zero")
+        if not math.isfinite(number) or number <= 0:
+            raise argparse.ArgumentTypeError("must be greater than zero")
+        return number
+
     ap.add_argument("--host", default="127.0.0.1", help="bind address (default 127.0.0.1, local only)")
     ap.add_argument("--port", type=int, default=8787)
     ap.add_argument("--html", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "原型", "V7 Agent-Floor.html"),
                     help="floor scene html to serve at /")
     ap.add_argument("--watch", action="append", default=[], metavar="NAME=DIR",
                     help="report any file written under DIR as shipped by NAME (repeatable)")
-    ap.add_argument("--watch-interval", type=float, default=1.5)
+    ap.add_argument("--watch-interval", type=positive_float, default=1.5)
     ap.add_argument("--watch-initial", action="store_true", help="also report files already present at start")
     ap.add_argument("--tail", metavar="FILE.jsonl", help="append-only jsonl of events")
     ap.add_argument("--demo", action="store_true", help="(smoke test) post one event of each kind, then keep serving")
     ap.add_argument("--worker", dest="worker", action="store_true", default=True,
                     help="do assigned work in-process, so agents start as soon as you assign (default)")
     ap.add_argument("--no-worker", dest="worker", action="store_false", help="serve only; run floor_worker.py yourself")
-    ap.add_argument("--worker-interval", type=float, default=1.5)
+    ap.add_argument("--worker-interval", type=positive_float, default=1.5)
     ap.add_argument("--verbose", action="store_true")
     ARGS = ap.parse_args()
 
