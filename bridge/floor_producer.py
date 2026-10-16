@@ -18,6 +18,7 @@ Standard library only; exits non-zero if the bridge is unreachable (safe to igno
 """
 import argparse
 import json
+import math
 import os
 import sys
 import time
@@ -27,6 +28,16 @@ import urllib.request
 DEFAULT_URL = os.environ.get("FLOOR_URL", "http://127.0.0.1:8787")
 
 
+def positive_float(value):
+    try:
+        number = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("must be a number greater than zero")
+    if not math.isfinite(number) or number <= 0:
+        raise argparse.ArgumentTypeError("must be greater than zero")
+    return number
+
+
 def post(url, payload, quiet=False, timeout=4.0):
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url.rstrip("/") + "/event", data=data,
@@ -34,9 +45,12 @@ def post(url, payload, quiet=False, timeout=4.0):
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = resp.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")
         if not quiet:
-            print(body)
-        return True
+            print("floor bridge rejected the event at %s (HTTP %s): %s"
+                  % (url, exc.code, detail), file=sys.stderr)
+        return False
     except urllib.error.URLError as exc:
         if not quiet:
             print("floor bridge unreachable at %s (%s)" % (url, exc), file=sys.stderr)
@@ -45,6 +59,19 @@ def post(url, payload, quiet=False, timeout=4.0):
         if not quiet:
             print("floor report failed: %s" % exc, file=sys.stderr)
         return False
+
+    try:
+        result = json.loads(body)
+    except ValueError:
+        result = None
+    if not isinstance(result, dict) or result.get("ok") is not True:
+        if not quiet:
+            print("floor bridge did not confirm the event: %s" % (body or "empty response"),
+                  file=sys.stderr)
+        return False
+    if not quiet:
+        print(body)
+    return True
 
 
 def agent_args(p):
@@ -57,6 +84,10 @@ def agent_args(p):
 
 
 def watch(p):
+    if not math.isfinite(p.interval) or p.interval <= 0:
+        raise ValueError("watch interval must be greater than zero")
+    if not os.path.isdir(p.dir):
+        raise OSError("watch directory does not exist: %s" % p.dir)
     seen = {}
     start = time.time()
     print("watching %s -> %s" % (os.path.abspath(p.dir), p.agent), flush=True)
@@ -106,7 +137,7 @@ def main():
     w = sub.add_parser("watch", help="watch a folder: new/changed files count as shipped")
     w.add_argument("--agent", "-a", required=True)
     w.add_argument("--dir", required=True)
-    w.add_argument("--interval", type=float, default=1.5)
+    w.add_argument("--interval", type=positive_float, default=1.5)
     w.add_argument("--initial", action="store_true", help="also report files already there")
 
     p = ap.parse_args()
@@ -127,6 +158,9 @@ def main():
             watch(p)
         except KeyboardInterrupt:
             return 0
+        except (OSError, ValueError) as exc:
+            print("floor watch failed: %s" % exc, file=sys.stderr)
+            return 2
         return 0
 
     ev = agent_args(p)
